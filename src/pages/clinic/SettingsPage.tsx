@@ -6,11 +6,12 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Settings, Users, Stethoscope, Save, Upload, X, Image, UserPlus, Mail, Clock, CheckCircle, XCircle, UserCog, Lock, MessageSquare, HeartHandshake, Link2, ListTree } from 'lucide-react';
 import ProfessionalsTab from '@/components/settings/ProfessionalsTab';
 import KanbanStagesTab from '@/components/settings/KanbanStagesTab';
@@ -33,6 +34,11 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [setupSaving, setSetupSaving] = useState(false);
+  const [setupLegalName, setSetupLegalName] = useState('');
+  const [setupCnpj, setSetupCnpj] = useState('');
+  const [setupSpecialties, setSetupSpecialties] = useState<string[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchParams] = useSearchParams();
   const requestedSection = searchParams.get('section');
@@ -169,6 +175,23 @@ export default function SettingsPage() {
     toast({ title: 'Configurações salvas!' });
   };
 
+  const applyClinicSetup = async () => {
+    if (!clinicId || role !== 'admin') return;
+    setSetupSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('configure-clinic-setup', {
+        body: { clinicId, legalName: setupLegalName, cnpj: setupCnpj, selectedSpecialties: setupSpecialties },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: 'Catálogo inicial aplicado!', description: 'Cargos, conselhos e serviços sugeridos já estão prontos para revisão.' });
+    } catch (err: unknown) {
+      toast({ title: 'Não foi possível aplicar o setup', description: err instanceof Error ? err.message : 'Tente novamente.', variant: 'destructive' });
+    } finally {
+      setSetupSaving(false);
+    }
+  };
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clinicId || !inviteEmail.trim() || !inviteCargo) return;
@@ -232,6 +255,33 @@ export default function SettingsPage() {
 
         {/* ===== GENERAL ===== */}
         <TabsContent value="general" className="space-y-5">
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle>Setup inicial da clínica</CardTitle>
+              <p className="text-sm text-muted-foreground">Escolha as especialidades atendidas. O Aura cria uma base editável de cargos, conselhos e serviços para você revisar antes de cadastrar profissionais.</p>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="setup-legal-name">Razão social</Label><Input id="setup-legal-name" value={setupLegalName} onChange={event => setSetupLegalName(event.target.value)} placeholder="Ex.: Clínica Aura LTDA" disabled={role !== 'admin'} /></div>
+                <div className="space-y-2"><Label htmlFor="setup-cnpj">CNPJ</Label><Input id="setup-cnpj" value={setupCnpj} onChange={event => setSetupCnpj(event.target.value)} placeholder="Somente números" inputMode="numeric" maxLength={18} disabled={role !== 'admin'} /></div>
+              </div>
+              <div className="space-y-3">
+                <Label>Especialidades atendidas</Label>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[['dermatologia', 'Dermatologia'], ['ortopedia', 'Ortopedia'], ['cardiologia', 'Cardiologia'], ['clinica_medica', 'Clínica médica']].map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-2 rounded-lg border p-3 text-sm cursor-pointer">
+                      <Checkbox checked={setupSpecialties.includes(value)} onCheckedChange={(checked) => setSetupSpecialties(current => checked ? [...current, value] : current.filter(item => item !== value))} disabled={role !== 'admin'} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button type="button" onClick={applyClinicSetup} disabled={setupSaving || role !== 'admin' || setupSpecialties.length === 0} className="gradient-primary text-primary-foreground">
+                {setupSaving ? 'Preparando catálogo...' : 'Aplicar catálogo inicial'}
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-card">
             <CardHeader><CardTitle>Dados da Clínica</CardTitle></CardHeader>
             <CardContent className="max-w-2xl space-y-6">
@@ -309,9 +359,36 @@ export default function SettingsPage() {
                 <div className="min-w-0 space-y-2"><Label htmlFor="administrative-whatsapp">WhatsApp administrativo</Label><Input id="administrative-whatsapp" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} disabled={role !== 'admin'} /><p className="text-xs text-muted-foreground">Não é o número usado pela Aura para atender pacientes.</p></div>
                 <div className="min-w-0 space-y-2"><Label htmlFor="administrative-phone">Telefone administrativo</Label><Input id="administrative-phone" value={phone} onChange={e => setPhone(e.target.value)} disabled={role !== 'admin'} /></div>
               </div>
-              <Button onClick={saveClinic} disabled={saving || role !== 'admin'} className="gradient-primary text-primary-foreground">
-                <Save className="w-4 h-4 mr-2" />{saving ? 'Salvando...' : 'Salvar dados gerais'}
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button type="button" variant="outline" onClick={() => setReviewOpen(true)}>
+                  <CheckCircle className="w-4 h-4 mr-2" />Conferir dados
+                </Button>
+                <Button onClick={saveClinic} disabled={saving || role !== 'admin'} className="gradient-primary text-primary-foreground">
+                  <Save className="w-4 h-4 mr-2" />{saving ? 'Salvando...' : 'Salvar dados gerais'}
+                </Button>
+              </div>
+
+              <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Conferir dados gerais</DialogTitle>
+                  </DialogHeader>
+                  <DialogDescription>
+                    Revise as informações abaixo antes de sair desta tela. Esta conferência não salva alterações.
+                  </DialogDescription>
+                  <dl className="space-y-3 rounded-xl border bg-muted/30 p-4 text-sm">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4"><dt className="text-muted-foreground">Clínica</dt><dd className="font-medium break-words">{name.trim() || 'Não informado'}</dd></div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4"><dt className="text-muted-foreground">Gestor responsável</dt><dd className="font-medium break-words">{administrativeManagerName.trim() || 'Não informado'}</dd></div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4"><dt className="text-muted-foreground">Recepção</dt><dd className="font-medium break-words">{receptionContactName.trim() || 'Não informado'}</dd></div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4"><dt className="text-muted-foreground">E-mail</dt><dd className="font-medium break-all">{email.trim() || 'Não informado'}</dd></div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4"><dt className="text-muted-foreground">WhatsApp administrativo</dt><dd className="font-medium break-words">{whatsapp.trim() || 'Não informado'}</dd></div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-4"><dt className="text-muted-foreground">Telefone administrativo</dt><dd className="font-medium break-words">{phone.trim() || 'Não informado'}</dd></div>
+                  </dl>
+                  <div className="flex justify-end">
+                    <Button type="button" onClick={() => setReviewOpen(false)}>Voltar e editar</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
