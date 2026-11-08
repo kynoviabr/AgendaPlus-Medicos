@@ -1,5 +1,6 @@
 import { serve } from "../_shared/serve.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isValidCnpjFormat, normalizeCnpj } from "../../../src/lib/cnpj.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,10 +40,34 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { clinicName, phone, email } = await req.json();
+    const { clinicName, legalName, cnpj, phone, email, selectedSpecialties } = await req.json();
 
     if (!clinicName || clinicName.trim().length < 2) {
       return new Response(JSON.stringify({ error: "Nome da clínica é obrigatório (mín. 2 caracteres)" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const cleanCnpj = normalizeCnpj(cnpj);
+    if (cleanCnpj && !isValidCnpjFormat(cleanCnpj)) {
+      return new Response(JSON.stringify({ error: "CNPJ deve ter 14 caracteres: letras ou números nas 12 primeiras posições e números nas 2 finais" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const specialtyCatalog: Record<string, { label: string; services: string[] }> = {
+      dermatologia: { label: "Dermatologia", services: ["Consulta dermatológica", "Retorno dermatológico"] },
+      ortopedia: { label: "Ortopedia", services: ["Consulta ortopédica", "Retorno ortopédico"] },
+      cardiologia: { label: "Cardiologia", services: ["Consulta cardiológica", "Retorno cardiológico"] },
+      clinica_medica: { label: "Clínica médica", services: ["Consulta clínica", "Retorno clínico"] },
+    };
+    const specialtyKeys = Array.isArray(selectedSpecialties)
+      ? [...new Set(selectedSpecialties)].filter((key): key is string => typeof key === "string" && key in specialtyCatalog)
+      : [];
+    if (!specialtyKeys.length) {
+      return new Response(JSON.stringify({ error: "Selecione ao menos uma especialidade" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -82,6 +107,8 @@ serve(async (req) => {
       .insert({
         name: clinicName.trim(),
         slug,
+        legal_name: String(legalName || "").trim() || null,
+        cnpj: cleanCnpj || null,
         phone: phone?.trim() || null,
         email: email?.trim() || null,
       })
@@ -109,6 +136,48 @@ serve(async (req) => {
       // Rollback: delete the clinic
       await adminClient.from("clinics").delete().eq("id", clinic.id);
       return new Response(JSON.stringify({ error: roleError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Every new clinic starts with the minimum professional catalog required
+    // by the setup flow. It is tenant-scoped and can be edited or removed by
+    // the clinic later; this prevents a first professional from being blocked
+    // by empty Cargo/Conselho selectors.
+    const [setupResult, rolesResult, entitiesResult] = await Promise.all([
+      adminClient.from("clinic_setup_profiles").upsert({
+        clinic_id: clinic.id,
+        selected_specialties: specialtyKeys.map((key) => specialtyCatalog[key].label),
+        status: "complete",
+        catalog_applied_at: new Date().toISOString(),
+      }, { onConflict: "clinic_id" }),
+      adminClient.from("roles").upsert([
+        { clinic_id: clinic.id, name: "Médico(a)", description: "Profissional médico" },
+        { clinic_id: clinic.id, name: "Enfermeiro(a)", description: "Profissional de enfermagem" },
+        { clinic_id: clinic.id, name: "Técnico(a) de enfermagem", description: "Técnico de enfermagem" },
+        { clinic_id: clinic.id, name: "Recepcionista", description: "Atendimento e recepção" },
+      ], { onConflict: "clinic_id,name", ignoreDuplicates: true }),
+      adminClient.from("class_entities").upsert([
+        { clinic_id: clinic.id, name: "Conselho Regional de Medicina", abbreviation: "CRM", description: "Conselho profissional regional da medicina." },
+        { clinic_id: clinic.id, name: "Conselho Regional de Enfermagem", abbreviation: "COREN", description: "Conselho profissional regional da enfermagem." },
+      ], { onConflict: "clinic_id,abbreviation", ignoreDuplicates: true }),
+    ]);
+
+    const catalogError = setupResult.error || rolesResult.error || entitiesResult.error;
+    if (catalogError) {
+      return new Response(JSON.stringify({ error: `Clínica criada, mas não foi possível preparar o catálogo inicial: ${catalogError.message}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const treatmentRows = specialtyKeys.flatMap((key) => specialtyCatalog[key].services)
+      .map((name) => ({ clinic_id: clinic.id, name, duration_minutes: 60, price: 0, is_active: true }));
+    const { error: treatmentsError } = await adminClient.from("treatments").insert(treatmentRows);
+    if (treatmentsError) {
+      await adminClient.from("clinics").delete().eq("id", clinic.id);
+      return new Response(JSON.stringify({ error: `Não foi possível preparar os serviços iniciais: ${treatmentsError.message}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

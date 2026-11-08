@@ -3,14 +3,14 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { formatCnpjInput } from '@/lib/cnpj';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Stethoscope, Building2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
 
 export default function OnboardingPage() {
   const { user } = useAuth();
@@ -21,8 +21,18 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
 
   const [clinicName, setClinicName] = useState('');
+  const [legalName, setLegalName] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState(user?.email || '');
+  const [specialties, setSpecialties] = useState<string[]>([]);
+
+  const specialtyOptions = [
+    ['dermatologia', 'Dermatologia'],
+    ['ortopedia', 'Ortopedia'],
+    ['cardiologia', 'Cardiologia'],
+    ['clinica_medica', 'Clínica médica'],
+  ] as const;
 
   // If user already has a role, redirect to appropriate area
   useEffect(() => {
@@ -38,17 +48,22 @@ export default function OnboardingPage() {
 
     try {
       const { data, error } = await supabase.functions.invoke('create-clinic', {
-        body: { clinicName, phone, email },
+        body: { clinicName, legalName, cnpj, phone, email, selectedSpecialties: specialties },
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
       toast({ title: 'Clínica criada com sucesso!', description: 'Bem-vindo ao Kynovia.' });
-      // Small delay to let role propagate
-      setTimeout(() => navigate('/clinic', { replace: true }), 500);
+      // Reload once so the freshly assigned administrator role is read before
+      // the protected clinic route is evaluated.
+      window.location.replace('/clinic');
     } catch (err: unknown) {
-      toast({ title: 'Erro', description: getErrorMessage(err), variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: await getFunctionErrorMessage(err, 'Tente novamente em alguns instantes.'),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -95,6 +110,28 @@ export default function OnboardingPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="clinic-legal-name">Razão social</Label>
+                  <Input
+                    id="clinic-legal-name"
+                    placeholder="Ex.: Clínica Aura LTDA"
+                    value={legalName}
+                    onChange={e => setLegalName(e.target.value)}
+                    maxLength={160}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="clinic-cnpj">CNPJ</Label>
+                  <Input
+                    id="clinic-cnpj"
+                    placeholder="00.000.000/ABCD-00"
+                    value={cnpj}
+                    onChange={e => setCnpj(formatCnpjInput(e.target.value))}
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={18}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="clinic-phone">Telefone</Label>
                   <Input
                     id="clinic-phone"
@@ -113,7 +150,22 @@ export default function OnboardingPage() {
                     onChange={e => setEmail(e.target.value)}
                   />
                 </div>
-                <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={!clinicName.trim()}>
+                <div className="space-y-3">
+                  <Label>Especialidades atendidas *</Label>
+                  <p className="text-xs text-muted-foreground">O Aura cria serviços sugeridos para as escolhas abaixo. Você poderá editar ou remover qualquer item depois.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {specialtyOptions.map(([value, label]) => (
+                      <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm">
+                        <Checkbox
+                          checked={specialties.includes(value)}
+                          onCheckedChange={(checked) => setSpecialties(current => checked ? [...current, value] : current.filter(item => item !== value))}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={!clinicName.trim() || specialties.length === 0}>
                   Próximo <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </form>
@@ -135,6 +187,18 @@ export default function OnboardingPage() {
                   <span className="text-sm text-muted-foreground">Clínica</span>
                   <span className="text-sm font-medium text-foreground">{clinicName}</span>
                 </div>
+                {legalName && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-sm text-muted-foreground">Razão social</span>
+                    <span className="text-right text-sm font-medium text-foreground">{legalName}</span>
+                  </div>
+                )}
+                {cnpj && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-sm text-muted-foreground">CNPJ</span>
+                    <span className="text-right text-sm font-medium text-foreground">{cnpj}</span>
+                  </div>
+                )}
                 {phone && (
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Telefone</span>
@@ -147,6 +211,10 @@ export default function OnboardingPage() {
                     <span className="text-sm font-medium text-foreground">{email}</span>
                   </div>
                 )}
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">Especialidades</span>
+                  <span className="text-right text-sm font-medium text-foreground">{specialtyOptions.filter(([value]) => specialties.includes(value)).map(([, label]) => label).join(', ')}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Seu papel</span>
                   <span className="text-sm font-medium text-primary">Administrador</span>

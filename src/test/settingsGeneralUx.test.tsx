@@ -95,11 +95,37 @@ describe('Settings General UX', () => {
     expect(within(settingsTabs).queryByRole('tab', { name: 'Categorias' })).not.toBeInTheDocument();
   });
 
+  it('offers the guided catalog setup before professionals are configured', async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    await screen.findByLabelText('Nome da clínica');
+    expect(screen.getByRole('heading', { name: 'Setup inicial da clínica' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Razão social')).toBeInTheDocument();
+    expect(screen.getByLabelText('CNPJ')).toBeInTheDocument();
+    expect(screen.getByText('Dermatologia')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Aplicar catálogo inicial' })).toBeDisabled();
+  });
+
   it('does not expose the legacy clinic address or a duplicate Units tab', async () => {
     render(<MemoryRouter><SettingsPage /></MemoryRouter>);
     await screen.findByLabelText('Nome da clínica');
     expect(screen.queryByDisplayValue('Endereço legado')).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Unidades' })).not.toBeInTheDocument();
+  });
+
+  it('lets the administrator review the current general data before leaving the page', async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    await screen.findByLabelText('Nome da clínica');
+    fireEvent.click(screen.getByRole('button', { name: 'Conferir dados' }));
+
+    expect(screen.getByRole('heading', { name: 'Conferir dados gerais' })).toBeInTheDocument();
+    expect(screen.getByText('Clínica Aura')).toBeInTheDocument();
+    expect(screen.getByText('Maria Silva')).toBeInTheDocument();
+    expect(screen.getByText('Ana Souza')).toBeInTheDocument();
+    expect(screen.getByText('administrativo@aura.test')).toBeInTheDocument();
+    expect(screen.getByText(/Esta conferência não salva alterações/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Voltar e editar' })).toBeInTheDocument();
   });
 
   it('removes the Branding tab and color/theme controls from Settings UI', async () => {

@@ -49,9 +49,7 @@ export default function LoginPage() {
             'Login com Facebook está liberado para pacientes com acesso ativo. Contate a clínica para ativar seu vínculo.',
           );
         } else {
-          setAccessBlockedMessage(
-            'Seu acesso ainda não foi liberado. Apenas usuários convidados por um administrador da clínica podem entrar.',
-          );
+          navigate('/onboarding', { replace: true });
         }
       }
     }
