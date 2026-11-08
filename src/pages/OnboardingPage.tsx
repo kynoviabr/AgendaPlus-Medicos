@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { SpecialtyMultiSelect } from '@/components/ui/SpecialtyMultiSelect';
 import { Stethoscope, Building2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -151,19 +152,51 @@ export default function OnboardingPage() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label>Especialidades atendidas *</Label>
-                  <p className="text-xs text-muted-foreground">O Aura cria serviços sugeridos para as escolhas abaixo. Você poderá editar ou remover qualquer item depois.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {specialtyOptions.map(([value, label]) => (
-                      <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm">
-                        <Checkbox
-                          checked={specialties.includes(value)}
-                          onCheckedChange={(checked) => setSpecialties(current => checked ? [...current, value] : current.filter(item => item !== value))}
-                        />
-                        {label}
-                      </label>
-                    ))}
+                  <div>
+                    <Label>Especialidades atendidas *</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Selecione uma ou mais especialidades (CFM / CRM). O Aura cria serviços sugeridos para as escolhas abaixo.
+                    </p>
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Mais comuns:</span>
+                    {[
+                      ['dermatologia', 'Dermatologia'],
+                      ['cardiologia', 'Cardiologia'],
+                      ['ortopedia', 'Ortopedia e Traumatologia'],
+                      ['clinica_medica', 'Clínica médica'],
+                      ['pediatria', 'Pediatria'],
+                      ['ginecologia_e_obstetricia', 'Ginecologia e Obstetrícia'],
+                    ].map(([val, label]) => {
+                      const isChecked = specialties.includes(val);
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() =>
+                            setSpecialties((cur) =>
+                              isChecked ? cur.filter((x) => x !== val) : [...cur, val]
+                            )
+                          }
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs transition-colors ${
+                            isChecked
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background hover:bg-muted text-foreground border-border'
+                          }`}
+                        >
+                          <span className="text-[10px] opacity-70">{isChecked ? '✓' : '+'}</span>
+                          <span>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <SpecialtyMultiSelect
+                    selected={specialties}
+                    onChange={setSpecialties}
+                    placeholder="Buscar e selecionar entre as 55 especialidades CFM..."
+                  />
                 </div>
                 <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={!clinicName.trim() || specialties.length === 0}>
                   Próximo <ArrowRight className="w-4 h-4 ml-2" />

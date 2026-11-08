@@ -1,15 +1,11 @@
 import { serve } from "../_shared/serve.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isValidCnpjFormat, normalizeCnpj } from "../../../src/lib/cnpj.ts";
+import { CFM_SPECIALTIES_CATALOG } from "../_shared/medical-specialties.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
-const specialties: Record<string, { label: string; services: string[] }> = {
-  dermatologia: { label: "Dermatologia", services: ["Consulta dermatológica", "Retorno dermatológico"] },
-  ortopedia: { label: "Ortopedia", services: ["Consulta ortopédica", "Retorno ortopédico"] },
-  cardiologia: { label: "Cardiologia", services: ["Consulta cardiológica", "Retorno cardiológico"] },
-  clinica_medica: { label: "Clínica médica", services: ["Consulta clínica", "Retorno clínico"] },
-};
+const specialties = CFM_SPECIALTIES_CATALOG;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

@@ -1,6 +1,7 @@
 import { serve } from "../_shared/serve.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isValidCnpjFormat, normalizeCnpj } from "../../../src/lib/cnpj.ts";
+import { CFM_SPECIALTIES_CATALOG } from "../_shared/medical-specialties.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,12 +58,7 @@ serve(async (req) => {
       });
     }
 
-    const specialtyCatalog: Record<string, { label: string; services: string[] }> = {
-      dermatologia: { label: "Dermatologia", services: ["Consulta dermatológica", "Retorno dermatológico"] },
-      ortopedia: { label: "Ortopedia", services: ["Consulta ortopédica", "Retorno ortopédico"] },
-      cardiologia: { label: "Cardiologia", services: ["Consulta cardiológica", "Retorno cardiológico"] },
-      clinica_medica: { label: "Clínica médica", services: ["Consulta clínica", "Retorno clínico"] },
-    };
+    const specialtyCatalog = CFM_SPECIALTIES_CATALOG;
     const specialtyKeys = Array.isArray(selectedSpecialties)
       ? [...new Set(selectedSpecialties)].filter((key): key is string => typeof key === "string" && key in specialtyCatalog)
       : [];

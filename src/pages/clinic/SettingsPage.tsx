@@ -26,6 +26,7 @@ import ProfessionalRulesTab from '@/components/settings/ProfessionalRulesTab';
 import ProfessionalLinksTab from '@/components/settings/ProfessionalLinksTab';
 import RegistrationsTab from '@/components/settings/RegistrationsTab';
 import ServicesPage from '@/pages/clinic/ServicesPage';
+import { SpecialtyMultiSelect } from '@/components/ui/SpecialtyMultiSelect';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -272,15 +273,53 @@ export default function SettingsPage() {
                 <div className="space-y-2"><Label htmlFor="setup-cnpj">CNPJ</Label><Input id="setup-cnpj" value={setupCnpj} onChange={event => setSetupCnpj(formatCnpjInput(event.target.value))} placeholder="00.000.000/ABCD-00" autoCapitalize="characters" spellCheck={false} maxLength={18} disabled={role !== 'admin'} /></div>
               </div>
               <div className="space-y-3">
-                <Label>Especialidades atendidas</Label>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[['dermatologia', 'Dermatologia'], ['ortopedia', 'Ortopedia'], ['cardiologia', 'Cardiologia'], ['clinica_medica', 'Clínica médica']].map(([value, label]) => (
-                    <label key={value} className="flex items-center gap-2 rounded-lg border p-3 text-sm cursor-pointer">
-                      <Checkbox checked={setupSpecialties.includes(value)} onCheckedChange={(checked) => setSetupSpecialties(current => checked ? [...current, value] : current.filter(item => item !== value))} disabled={role !== 'admin'} />
-                      {label}
-                    </label>
-                  ))}
+                <div>
+                  <Label>Especialidades atendidas</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Selecione uma ou mais especialidades médicas (base CFM / CRM) para provisionar os serviços, cargos e conselhos sugeridos.
+                  </p>
                 </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Mais comuns:</span>
+                  {[
+                    ['dermatologia', 'Dermatologia'],
+                    ['cardiologia', 'Cardiologia'],
+                    ['ortopedia', 'Ortopedia e Traumatologia'],
+                    ['clinica_medica', 'Clínica médica'],
+                    ['pediatria', 'Pediatria'],
+                    ['ginecologia_e_obstetricia', 'Ginecologia e Obstetrícia'],
+                  ].map(([val, label]) => {
+                    const isChecked = setupSpecialties.includes(val);
+                    return (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() =>
+                          setSetupSpecialties((cur) =>
+                            isChecked ? cur.filter((x) => x !== val) : [...cur, val]
+                          )
+                        }
+                        disabled={role !== 'admin'}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs transition-colors ${
+                          isChecked
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-background hover:bg-muted text-foreground border-border'
+                        }`}
+                      >
+                        <span className="text-[10px] opacity-70">{isChecked ? '✓' : '+'}</span>
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <SpecialtyMultiSelect
+                  selected={setupSpecialties}
+                  onChange={setSetupSpecialties}
+                  disabled={role !== 'admin'}
+                  placeholder="Buscar e selecionar entre as 55 especialidades CFM..."
+                />
               </div>
               <Button type="button" onClick={applyClinicSetup} disabled={setupSaving || role !== 'admin' || setupSpecialties.length === 0} className="gradient-primary text-primary-foreground">
                 {setupSaving ? 'Preparando catálogo...' : 'Aplicar catálogo inicial'}
