@@ -1,5 +1,6 @@
 import { serve } from "../_shared/serve.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isValidCnpjFormat, normalizeCnpj } from "../../../src/lib/cnpj.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,9 +49,9 @@ serve(async (req) => {
       });
     }
 
-    const cleanCnpj = String(cnpj || "").replace(/\D/g, "");
-    if (cleanCnpj && cleanCnpj.length !== 14) {
-      return new Response(JSON.stringify({ error: "CNPJ deve ter 14 dígitos" }), {
+    const cleanCnpj = normalizeCnpj(cnpj);
+    if (cleanCnpj && !isValidCnpjFormat(cleanCnpj)) {
+      return new Response(JSON.stringify({ error: "CNPJ deve ter 14 caracteres: letras ou números nas 12 primeiras posições e números nas 2 finais" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

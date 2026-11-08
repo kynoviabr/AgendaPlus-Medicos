@@ -3,15 +3,14 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { formatCnpjInput } from '@/lib/cnpj';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Stethoscope, Building2, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : 'Tente novamente em alguns instantes.';
 
 export default function OnboardingPage() {
   const { user } = useAuth();
@@ -60,7 +59,11 @@ export default function OnboardingPage() {
       // the protected clinic route is evaluated.
       window.location.replace('/clinic');
     } catch (err: unknown) {
-      toast({ title: 'Erro', description: getErrorMessage(err), variant: 'destructive' });
+      toast({
+        title: 'Erro',
+        description: await getFunctionErrorMessage(err, 'Tente novamente em alguns instantes.'),
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -120,10 +123,11 @@ export default function OnboardingPage() {
                   <Label htmlFor="clinic-cnpj">CNPJ</Label>
                   <Input
                     id="clinic-cnpj"
-                    placeholder="Somente números"
+                    placeholder="00.000.000/ABCD-00"
                     value={cnpj}
-                    onChange={e => setCnpj(e.target.value)}
-                    inputMode="numeric"
+                    onChange={e => setCnpj(formatCnpjInput(e.target.value))}
+                    autoCapitalize="characters"
+                    spellCheck={false}
                     maxLength={18}
                   />
                 </div>

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { formatCnpjInput } from '@/lib/cnpj';
+import { getFunctionErrorMessage } from '@/lib/functionError';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/ui/page-header';
@@ -186,7 +188,11 @@ export default function SettingsPage() {
       if (data?.error) throw new Error(data.error);
       toast({ title: 'Catálogo inicial aplicado!', description: 'Cargos, conselhos e serviços sugeridos já estão prontos para revisão.' });
     } catch (err: unknown) {
-      toast({ title: 'Não foi possível aplicar o setup', description: err instanceof Error ? err.message : 'Tente novamente.', variant: 'destructive' });
+      toast({
+        title: 'Não foi possível aplicar o setup',
+        description: await getFunctionErrorMessage(err, 'Tente novamente.'),
+        variant: 'destructive',
+      });
     } finally {
       setSetupSaving(false);
     }
@@ -263,7 +269,7 @@ export default function SettingsPage() {
             <CardContent className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="setup-legal-name">Razão social</Label><Input id="setup-legal-name" value={setupLegalName} onChange={event => setSetupLegalName(event.target.value)} placeholder="Ex.: Clínica Aura LTDA" disabled={role !== 'admin'} /></div>
-                <div className="space-y-2"><Label htmlFor="setup-cnpj">CNPJ</Label><Input id="setup-cnpj" value={setupCnpj} onChange={event => setSetupCnpj(event.target.value)} placeholder="Somente números" inputMode="numeric" maxLength={18} disabled={role !== 'admin'} /></div>
+                <div className="space-y-2"><Label htmlFor="setup-cnpj">CNPJ</Label><Input id="setup-cnpj" value={setupCnpj} onChange={event => setSetupCnpj(formatCnpjInput(event.target.value))} placeholder="00.000.000/ABCD-00" autoCapitalize="characters" spellCheck={false} maxLength={18} disabled={role !== 'admin'} /></div>
               </div>
               <div className="space-y-3">
                 <Label>Especialidades atendidas</Label>

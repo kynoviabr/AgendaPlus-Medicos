@@ -1,5 +1,6 @@
 import { serve } from "../_shared/serve.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isValidCnpjFormat, normalizeCnpj } from "../../../src/lib/cnpj.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -24,8 +25,10 @@ serve(async (req) => {
     const { clinicId, legalName, cnpj, selectedSpecialties } = await req.json();
     if (!clinicId || !Array.isArray(selectedSpecialties)) throw new Error("Dados de setup inválidos");
     const selected = [...new Set(selectedSpecialties)].filter((key) => key in specialties);
-    const cleanCnpj = String(cnpj || "").replace(/\D/g, "");
-    if (cleanCnpj && cleanCnpj.length !== 14) throw new Error("CNPJ deve ter 14 dígitos");
+    const cleanCnpj = normalizeCnpj(cnpj);
+    if (cleanCnpj && !isValidCnpjFormat(cleanCnpj)) {
+      throw new Error("CNPJ deve ter 14 caracteres: letras ou números nas 12 primeiras posições e números nas 2 finais");
+    }
     const admin = createClient(url, service);
     const { data: membership } = await admin.from("user_roles").select("id").eq("user_id", user.id).eq("clinic_id", clinicId).eq("role", "admin").eq("is_active", true).maybeSingle();
     if (!membership) return new Response(JSON.stringify({ error: "Sem permissão para configurar esta clínica" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
